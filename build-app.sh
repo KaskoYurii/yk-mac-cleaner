@@ -20,14 +20,28 @@ YAML
   SWIFT_FLAGS=(-vfsoverlay build/vfs.yaml -Xcc -ivfsoverlay -Xcc build/vfs.yaml)
 fi
 
-swiftc -O -swift-version 5 -parse-as-library \
-  -target "$(uname -m)-apple-macos14.0" "${SWIFT_FLAGS[@]}" \
-  -o build/YKCleaner Sources/YKCleaner/*.swift
+# UNIVERSAL=1 builds for both Apple Silicon and Intel (used for releases).
+if [ "${UNIVERSAL:-0}" = "1" ]; then ARCHS=(arm64 x86_64); else ARCHS=("$(uname -m)"); fi
+SLICES=()
+for arch in "${ARCHS[@]}"; do
+  swiftc -O -swift-version 5 -parse-as-library \
+    -target "$arch-apple-macos14.0" "${SWIFT_FLAGS[@]}" \
+    -o "build/YKCleaner-$arch" Sources/YKCleaner/*.swift
+  SLICES+=("build/YKCleaner-$arch")
+done
+lipo -create "${SLICES[@]}" -output build/YKCleaner
+rm -f "${SLICES[@]}"
 
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 mv build/YKCleaner "$APP/Contents/MacOS/YKCleaner"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+
+# Version: VERSION file (marketing version) + git commit count (build number)
+VERSION="$(tr -d '[:space:]' < VERSION)"
+BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $VERSION" "$APP/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $BUILD" "$APP/Contents/Info.plist"
 
 # App icon
 ICONSET="build/AppIcon.iconset"
@@ -42,4 +56,4 @@ iconutil -c icns "$ICONSET" -o "$APP/Contents/Resources/AppIcon.icns"
 rm -rf "$ICONSET" build/icon-1024.png
 
 codesign --force --deep --sign - "$APP"
-echo "Built: $APP"
+echo "Built: $APP (v$VERSION, build $BUILD)"

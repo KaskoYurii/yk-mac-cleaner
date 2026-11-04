@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -124,7 +125,28 @@ struct CleanerCommands: Commands {
     let model: CleanerModel
     let apps: AppsModel
 
+    /// Standard About panel (shows CFBundleShortVersionString + build) with a project link.
+    @MainActor
+    static func showAbout() {
+        let credits = NSMutableAttributedString(
+            string: "Clean junk and uninstall apps.\n",
+            attributes: [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: NSColor.secondaryLabelColor])
+        credits.append(NSAttributedString(
+            string: "github.com/KaskoYurii/yk-mac-cleaner",
+            attributes: [.font: NSFont.systemFont(ofSize: 11),
+                         .link: URL(string: "https://github.com/KaskoYurii/yk-mac-cleaner")!]))
+        let centered = NSMutableParagraphStyle()
+        centered.alignment = .center
+        credits.addAttribute(.paragraphStyle, value: centered, range: NSRange(location: 0, length: credits.length))
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+        NSApp.activate()
+    }
+
     var body: some Commands {
+        CommandGroup(replacing: .appInfo) {
+            Button("About YK Cleaner") { Self.showAbout() }
+        }
+
         // Single-window utility: no "New Window".
         CommandGroup(replacing: .newItem) {}
 
