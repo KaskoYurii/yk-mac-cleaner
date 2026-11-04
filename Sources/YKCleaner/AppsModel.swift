@@ -1,5 +1,6 @@
 import AppKit
 import Observation
+import SwiftUI
 
 enum AppSection: String, Hashable {
     case cleaner, apps
@@ -51,6 +52,12 @@ final class AppsModel {
     // MARK: Derived
 
     var selectedApp: InstalledApp? { apps.first { $0.url == selectedID } }
+
+    /// First stage of loading: the app list itself hasn't arrived yet.
+    var isListing: Bool { isLoading && apps.isEmpty }
+    /// Second stage: apps are listed, sizes are still being measured.
+    var isMeasuring: Bool { isLoading && !apps.isEmpty }
+    var measuredCount: Int { details.count }
 
     func totalSize(_ app: InstalledApp) -> Int64? {
         details[app.url].map { $0.appSize + $0.dataSize }
@@ -121,9 +128,12 @@ final class AppsModel {
         isLoading = true
         lastResult = nil
         let list = await Task.detached(priority: .userInitiated) { AppScanner.listApps() }.value
-        apps = list
-        details = [:]
-        unchecked = []
+        // Cross-fade from the placeholder rows to the real list.
+        withAnimation(Self.motion(.smooth(duration: 0.4))) {
+            apps = list
+            details = [:]
+            unchecked = []
+        }
         if let id = selectedID, !list.contains(where: { $0.url == id }) { selectedID = nil }
 
         let ids = Set(list.compactMap { $0.bundleID?.lowercased() })
@@ -142,7 +152,13 @@ final class AppsModel {
                 }
             }
         }
-        isLoading = false
+        // Sorting by size kicks in now; animate it so rows glide into place instead of jumping.
+        withAnimation(Self.motion(.smooth(duration: 0.5))) { isLoading = false }
+    }
+
+    /// The animation, or a short fade when Reduce Motion is on.
+    private static func motion(_ animation: Animation) -> Animation {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion ? .easeOut(duration: 0.15) : animation
     }
 
     func trashSelected() async {

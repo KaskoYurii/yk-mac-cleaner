@@ -11,10 +11,11 @@ struct CategoryCard: View {
     private var isScanning: Bool { model.scanning.contains(category.id) }
     private var locked: Bool { model.isLocked(category) }
     private var itemCount: Int { model.items(for: category).count }
+    @State private var showAccessHelp = false
 
     var body: some View {
         Button {
-            if locked { openFullDiskAccessSettings() } else { model.toggle(category) }
+            if locked { showAccessHelp = true } else { model.toggle(category) }
         } label: {
             content
                 .padding(16)
@@ -23,13 +24,18 @@ struct CategoryCard: View {
                 .glassCard(cornerRadius: 22, tint: isOn ? category.tint.opacity(0.22) : nil, interactive: true)
         }
         .buttonStyle(.plain)
+        .popover(isPresented: $showAccessHelp, arrowEdge: .bottom) {
+            FullDiskAccessHelp(areaName: category.name, openSettings: model.openFullDiskAccess) {
+                showAccessHelp = false
+            }
+        }
         .overlay(alignment: .bottomTrailing) { infoButton.padding(10) }
         .animation(.smooth(duration: 0.25), value: isOn)
         .contextMenu { menu }
         .help(category.detail)
         .accessibilityLabel(category.name)
         .accessibilityValue(accessibilityValue)
-        .accessibilityHint(locked ? "Opens Full Disk Access settings" : "Toggles whether this area is cleaned")
+        .accessibilityHint(locked ? "Explains how to give YK Cleaner Full Disk Access" : "Toggles whether this area is cleaned")
         .accessibilityAddTraits(isOn ? .isSelected : [])
     }
 
@@ -108,7 +114,7 @@ struct CategoryCard: View {
     @ViewBuilder
     private var menu: some View {
         if locked {
-            Button("Grant Full Disk Access…", action: openFullDiskAccessSettings)
+            Button("Grant Full Disk Access…") { showAccessHelp = true }
         } else {
             Button(isOn ? "Don't Clean" : "Clean This Area") { model.toggle(category) }
             Button("Show Items") { model.showDetails(for: category) }
@@ -122,7 +128,7 @@ struct CategoryCard: View {
 
     private var caption: String {
         if isScanning { return "Looking for junk…" }
-        if locked { return "Click to grant Full Disk Access" }
+        if locked { return "Needs Full Disk Access" }
         return itemCount == 0 ? "Already clean" : "\(itemCount) item\(itemCount == 1 ? "" : "s")"
     }
 
@@ -130,5 +136,49 @@ struct CategoryCard: View {
         if isScanning { return "Scanning" }
         if locked { return "Locked, needs Full Disk Access" }
         return "\(Format.bytes(model.size(of: category))), \(isOn ? "selected" : "not selected")"
+    }
+}
+
+/// Explains why an area is locked and how to unlock it, before anything opens System Settings.
+struct FullDiskAccessHelp: View {
+    let areaName: String
+    var openSettings: () -> Void
+    var dismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Label("Full Disk Access Needed", systemImage: "lock.shield")
+                .font(.headline)
+            Text("macOS protects \(areaName). To clean it, allow YK Cleaner to access it:")
+                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 6) {
+                step(1, "Click Open System Settings.")
+                step(2, "Turn on YK Cleaner in Full Disk Access.")
+                step(3, "Come back here. YK Cleaner checks again on its own.")
+            }
+            Text("If it still shows Locked, quit and reopen YK Cleaner. After an update you may need to turn the switch off and on again.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button("Not Now", action: dismiss)
+                    .keyboardShortcut(.cancelAction)
+                Button("Open System Settings") {
+                    dismiss()
+                    openSettings()
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(18)
+        .frame(width: 320)
+    }
+
+    private func step(_ n: Int, _ text: String) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text("\(n).").monospacedDigit().foregroundStyle(.secondary)
+            Text(text).fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

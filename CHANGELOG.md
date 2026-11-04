@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.0.1 — 2026-11-04
+
+### Fixed
+- Clean, Review, Done, Select All and Scan Again buttons (and Uninstall / Show in Finder in Apps)
+  did nothing when clicked on macOS 26. They now use the system glass button styles.
+
+### Improved
+- Apps: placeholder rows while apps are found, a progress bar while sizes are measured,
+  animated sizes, and a smooth reorder when measuring finishes.
+- Apps: selecting an app builds its details in with a short staggered animation.
+- Locked areas (e.g. Trash) now explain how to grant Full Disk Access before opening
+  System Settings, and YK Cleaner checks again when you come back.
+
+### Note
+- Builds are not notarized. After updating, you may need to turn YK Cleaner off and on again
+  in Privacy & Security › Full Disk Access.
+
 ## 1.0.0 — 2026-11-04
 
 First release.

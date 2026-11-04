@@ -37,6 +37,12 @@ struct ContentView: View {
             }
         }
         .animation(reduceMotion ? .easeOut(duration: 0.15) : .smooth(duration: 0.3), value: model.showInspector)
+        // Coming back from System Settings: rescan so newly granted access unlocks the cards.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            guard model.awaitingFullDiskAccess, !model.isBusy else { return }
+            model.awaitingFullDiskAccess = false
+            Task { await model.scan(keepingReport: true) }
+        }
         .confirmationDialog("Delete \(Format.bytes(model.selectedTotal)) of junk?",
                             isPresented: $model.showCleanConfirmation) {
             Button("Delete \(Format.bytes(model.selectedTotal))", role: .destructive) {

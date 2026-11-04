@@ -36,9 +36,9 @@ struct CategoryInspector: View {
                 ContentUnavailableView {
                     Label("Full Disk Access Needed", systemImage: "lock.shield")
                 } description: {
-                    Text("Allow YK Cleaner in Privacy & Security › Full Disk Access, then relaunch.")
+                    Text("Turn on YK Cleaner in Privacy & Security › Full Disk Access, then come back. It checks again on its own.")
                 } actions: {
-                    Button("Open Privacy Settings", action: openFullDiskAccessSettings)
+                    Button("Open Privacy Settings", action: model.openFullDiskAccess)
                 }
                 .frame(minHeight: 280)
                 .selectionDisabled()

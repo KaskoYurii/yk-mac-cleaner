@@ -27,6 +27,8 @@ final class CleanerModel {
     var showCleanConfirmation = false
     /// Result of the last clean, shown inline until dismissed or the next manual scan.
     var finishedReport: CleanReport?
+    /// Set when we sent the user to the Full Disk Access settings; the next app activation rescans.
+    var awaitingFullDiskAccess = false
 
     private static let selectedKey = "selectedCategories"
 
@@ -97,6 +99,11 @@ final class CleanerModel {
     func showDetails(for category: CleanCategory) {
         inspectorCategoryID = category.id
         showInspector = true
+    }
+
+    func openFullDiskAccess() {
+        awaitingFullDiskAccess = true
+        openFullDiskAccessSettings()
     }
 
     func requestClean() {

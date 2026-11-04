@@ -4,14 +4,18 @@ import SwiftUI
 /// App uninstaller: app list on the left, the selected app and its files on the right.
 struct AppsView: View {
     @Bindable var apps: AppsModel
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         HStack(spacing: 0) {
             AppList(apps: apps)
                 .frame(width: 290)
             Divider()
-            detail
+            ZStack(alignment: .topLeading) { detail }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .clipped()
+                .animation(reduceMotion ? .easeOut(duration: 0.15) : .smooth(duration: 0.45),
+                           value: apps.selectedID)
         }
         .confirmationDialog(confirmTitle, isPresented: $apps.showTrashConfirmation) {
             Button("Move to Trash", role: .destructive) {
@@ -35,6 +39,9 @@ struct AppsView: View {
         if let app = apps.selectedApp {
             AppDetailView(apps: apps, app: app)
                 .id(app.url)
+                // The cascade inside handles the entrance; the outgoing app just fades.
+                .transition(.asymmetric(insertion: .identity,
+                                        removal: .opacity.animation(.easeOut(duration: 0.15))))
         } else if let r = apps.lastResult {
             ContentUnavailableView {
                 Label(r.removedApp ? "\(r.appName) Uninstalled" : "Done", systemImage: "checkmark.circle")
@@ -42,11 +49,13 @@ struct AppsView: View {
                 Text("Moved \(r.moved) item\(r.moved == 1 ? "" : "s") (\(Format.bytes(r.freed))) to the Trash."
                      + (r.failed > 0 ? " \(r.failed) couldn't be moved." : ""))
             }
-        } else if apps.isLoading && apps.apps.isEmpty {
+        } else if apps.isListing {
             ProgressView("Finding apps…")
+                .transition(.opacity)
         } else {
             ContentUnavailableView("Select an App", systemImage: "square.grid.2x2",
                                    description: Text("See its size and the data it left on your Mac."))
+                .transition(.opacity)
         }
     }
 }
@@ -56,16 +65,33 @@ struct AppsView: View {
 private struct AppList: View {
     @Bindable var apps: AppsModel
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
-        list
-            .safeAreaInset(edge: .top, spacing: 0) {
-                VStack(spacing: 0) {
-                    SearchField(text: $apps.search, prompt: "Search apps")
-                        .padding(10)
-                    Divider()
-                }
-                .background(.thinMaterial)
+        ZStack {
+            if apps.isListing {
+                PlaceholderList()
+                    .transition(.opacity)
+            } else {
+                list
+                    .transition(.opacity)
             }
+        }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            VStack(spacing: 0) {
+                SearchField(text: $apps.search, prompt: "Search apps")
+                    .padding(10)
+                if apps.isMeasuring {
+                    MeasuringBar(measured: apps.measuredCount, total: apps.apps.count)
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 10)
+                        .transition(reduceMotion ? .opacity : .move(edge: .top).combined(with: .opacity))
+                }
+                Divider()
+            }
+            .background(.thinMaterial)
+            .clipped()
+        }
     }
 
     private var list: some View {
@@ -119,6 +145,8 @@ private struct AppRow: View {
                     }
                     Text(apps.totalSize(app).map(Format.bytes) ?? "Measuring…")
                         .monospacedDigit()
+                        .contentTransition(.numericText())
+                        .animation(.smooth(duration: 0.3), value: apps.totalSize(app))
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -129,7 +157,96 @@ private struct AppRow: View {
     }
 }
 
+/// Thin determinate progress shown under the search field while sizes are measured.
+private struct MeasuringBar: View {
+    let measured: Int
+    let total: Int
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            ProgressView(value: Double(measured), total: Double(max(total, 1)))
+                .progressViewStyle(.linear)
+                .controlSize(.small)
+                .animation(.smooth(duration: 0.25), value: measured)
+            Text("Measuring \(measured) of \(total)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .monospacedDigit()
+                .contentTransition(.numericText())
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Measuring app sizes")
+        .accessibilityValue("\(measured) of \(total)")
+    }
+}
+
+/// Skeleton rows shown while the app list is being read. Pulses gently (static with Reduce Motion).
+private struct PlaceholderList: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var dim = false
+
+    // Varied widths so it reads as a list, not a pattern.
+    private let widths: [CGFloat] = [120, 90, 150, 105, 135, 80, 140, 100, 125, 95, 145, 110]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(widths.indices, id: \.self) { i in
+                HStack(spacing: 10) {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .frame(width: 32, height: 32)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Capsule().frame(width: widths[i], height: 10)
+                        Capsule().frame(width: 48, height: 8).opacity(0.6)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 7)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.top, 6)
+        .foregroundStyle(.quaternary)
+        .opacity(dim ? 0.45 : 1)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .background(.thinMaterial)
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 0.9).repeatForever(autoreverses: true)) { dim = true }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Finding apps")
+    }
+}
+
 // MARK: - Detail
+
+/// Staggered entrance: each block fades in and settles from the top-left, a beat after the
+/// one before it, so a newly selected app builds up top-left → bottom-right. Each block runs
+/// its own entrance when it appears, so blocks that arrive later (once sizes are measured)
+/// cascade in too. With Reduce Motion it's a short fade with no movement or stagger.
+private struct CascadeIn: ViewModifier {
+    let index: Int
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        let offset: CGFloat = shown || reduceMotion ? 0 : -8
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(x: offset, y: offset)
+            .onAppear {
+                let animation: Animation = reduceMotion
+                    ? .easeOut(duration: 0.15)
+                    : .smooth(duration: 0.4).delay(Double(index) * 0.045)
+                withAnimation(animation) { shown = true }
+            }
+    }
+}
+
+private extension View {
+    func cascadeIn(_ index: Int) -> some View { modifier(CascadeIn(index: index)) }
+}
 
 private struct AppDetailView: View {
     let apps: AppsModel
@@ -139,18 +256,20 @@ private struct AppDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                if let r = apps.lastResult { resultBanner(r) }
-                header
+                if let r = apps.lastResult { resultBanner(r).cascadeIn(0) }
+                header.cascadeIn(0)
                 if let d = apps.details[app.url] {
-                    stats(d)
-                    if apps.isRunning(app) { runningBanner }
-                    filesCard
-                    actions
+                    stats(d).cascadeIn(1)
+                    if apps.isRunning(app) { runningBanner.cascadeIn(2) }
+                    filesCard.cascadeIn(3)
+                    actions.cascadeIn(4)
                 } else {
                     HStack(spacing: 10) {
                         ProgressView().controlSize(.small)
                         Text("Measuring app and its data…").foregroundStyle(.secondary)
                     }
+                    .cascadeIn(1)
+                    .transition(.opacity)
                 }
             }
             .padding(28)
@@ -257,27 +376,19 @@ private struct AppDetailView: View {
         return VStack(alignment: .leading, spacing: 10) {
             GlassGroup(spacing: 10) {
                 HStack(spacing: 10) {
-                    Button(action: apps.requestTrash) {
+                    GlassPillButton(tint: .red, morphID: "trash", namespace: glass,
+                                    action: apps.requestTrash) {
                         Label(title, systemImage: "trash")
                             .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .pill()
-                            .glassCapsule(tint: .red.opacity(enabled ? 0.85 : 0.35), interactive: enabled)
-                            .glassMorphID("trash", in: glass)
                     }
-                    .buttonStyle(.plain)
                     .disabled(!enabled)
                     .help("Move the selected files to the Trash (⌫)")
 
-                    Button {
+                    GlassPillButton(morphID: "finder", namespace: glass) {
                         NSWorkspace.shared.activateFileViewerSelecting([app.url])
                     } label: {
                         Label("Show in Finder", systemImage: "folder")
-                            .pill()
-                            .glassCapsule(interactive: true)
-                            .glassMorphID("finder", in: glass)
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .animation(.bouncy(duration: 0.4), value: title)

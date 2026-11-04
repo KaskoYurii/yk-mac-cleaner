@@ -67,6 +67,52 @@ extension View {
     }
 }
 
+/// Capsule action button with Liquid Glass that can morph inside a `GlassGroup`.
+///
+/// On macOS 26+ it uses the system `.glass` / `.glassProminent` button styles. Don't build
+/// these as a plain Button whose label carries `.glassEffect(.interactive())` + `glassEffectID`
+/// inside a GlassEffectContainer: that glass swallows the click and the action never fires.
+struct GlassPillButton<Label: View>: View {
+    /// A tint makes it the prominent (filled) style.
+    var tint: Color? = nil
+    var morphID: String
+    var namespace: Namespace.ID
+    var action: () -> Void
+    @ViewBuilder var label: Label
+
+    var body: some View {
+        if #available(macOS 26.0, *) {
+            styled(Button(action: action) {
+                label
+                    .lineLimit(1)
+                    .padding(.horizontal, 6)
+                    .frame(minHeight: 22)
+            })
+            .controlSize(.large)
+            .buttonBorderShape(.capsule)
+            .glassEffectID(morphID, in: namespace)
+        } else {
+            Button(action: action) {
+                label
+                    .foregroundStyle(tint == nil ? Color.primary : Color.white)
+                    .pill()
+                    .glassCapsule(tint: tint)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @available(macOS 26.0, *)
+    @ViewBuilder
+    private func styled<B: View>(_ button: B) -> some View {
+        if let tint {
+            button.buttonStyle(.glassProminent).tint(tint)
+        } else {
+            button.buttonStyle(.glass)
+        }
+    }
+}
+
 /// Wraps grouped glass so it shares one sampling region and can blend/morph.
 struct GlassGroup<Content: View>: View {
     var spacing: CGFloat

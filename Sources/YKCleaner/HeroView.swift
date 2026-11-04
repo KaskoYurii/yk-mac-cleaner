@@ -137,62 +137,45 @@ private struct HeroActions: View {
                     .accessibilityElement(children: .combine)
 
                 case .ready:
-                    Button(action: model.requestClean) {
+                    GlassPillButton(tint: .accentColor, morphID: "primary", namespace: glass,
+                                    action: model.requestClean) {
                         Label("Clean \(Format.bytes(model.selectedTotal))", systemImage: "sparkles")
                             .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .pill()
-                            .glassCapsule(tint: .accentColor, interactive: true)
-                            .glassMorphID("primary", in: glass)
                     }
-                    .buttonStyle(.plain)
                     .help("Clean the selected areas (⌘⌫)")
 
-                    Button {
+                    GlassPillButton(morphID: "secondary", namespace: glass) {
                         if let first = model.categories.first(where: { model.selected.contains($0.id) }) {
                             model.showDetails(for: first)
                         }
                     } label: {
                         Label("Review", systemImage: "eye")
                             .fontWeight(.medium)
-                            .pill()
-                            .glassCapsule(interactive: true)
-                            .glassMorphID("secondary", in: glass)
                     }
-                    .buttonStyle(.plain)
                     .help("See which files will be removed (⌥⌘I)")
 
                 case .finished:
-                    Button { model.finishedReport = nil } label: {
+                    GlassPillButton(tint: .green, morphID: "primary", namespace: glass) {
+                        model.finishedReport = nil
+                    } label: {
                         Label("Done", systemImage: "checkmark")
                             .fontWeight(.semibold)
-                            .foregroundStyle(.white)
-                            .pill()
-                            .glassCapsule(tint: .green, interactive: true)
-                            .glassMorphID("primary", in: glass)
                     }
-                    .buttonStyle(.plain)
                     .keyboardShortcut(.defaultAction)
 
                 case .nothingSelected:
                     if model.grandTotal > 0 {
-                        Button(action: model.selectAll) {
+                        GlassPillButton(morphID: "primary", namespace: glass, action: model.selectAll) {
                             Label("Select All", systemImage: "checklist")
                                 .fontWeight(.semibold)
-                                .pill()
-                                .glassCapsule(interactive: true)
-                                .glassMorphID("primary", in: glass)
                         }
-                        .buttonStyle(.plain)
                     } else {
-                        Button { Task { await model.scan() } } label: {
+                        GlassPillButton(morphID: "primary", namespace: glass) {
+                            Task { await model.scan() }
+                        } label: {
                             Label("Scan Again", systemImage: "arrow.clockwise")
                                 .fontWeight(.semibold)
-                                .pill()
-                                .glassCapsule(interactive: true)
-                                .glassMorphID("primary", in: glass)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
             }
