@@ -25,7 +25,7 @@ enum Scanner {
                 continue
             }
 
-            for child in children {
+            for child in children where isDeletable(child) {
                 if category.minAgeDays > 0 {
                     let modified = (try? child.resourceValues(forKeys: [.contentModificationDateKey]))?
                         .contentModificationDate ?? .distantPast
@@ -37,6 +37,15 @@ enum Scanner {
         }
         result.items.sort { $0.size > $1.size }
         return result
+    }
+
+    /// False for items macOS protects even from root (SIP-restricted, data vaults): listing them
+    /// would make every clean ask for a password and then fail.
+    private static func isDeletable(_ url: URL) -> Bool {
+        var st = stat()
+        guard lstat(url.path, &st) == 0 else { return false }
+        let protected = UInt32(SF_RESTRICTED | SF_NOUNLINK) | 0x80 // 0x80 = UF_DATAVAULT
+        return st.st_flags & protected == 0
     }
 
     /// Disk space used by a file or folder (does not follow symlinks).

@@ -47,6 +47,12 @@ final class CleanerModel {
     /// Opens the main window; set by the menu bar item, which outlives the window.
     @ObservationIgnored var showWindow: (() -> Void)?
 
+    /// System items an admin `rm -rf` couldn't remove (protected by macOS). Hidden from later
+    /// scans so they don't trigger a password prompt on every clean.
+    private var protectedPaths: Set<String> {
+        didSet { UserDefaults.standard.set(Array(protectedPaths), forKey: "protectedPaths") }
+    }
+
     private static let selectedKey = "selectedCategories"
 
     init() {
@@ -61,6 +67,7 @@ final class CleanerModel {
         autoCleanEvery = max(1, defaults.integer(forKey: "autoCleanEvery"))
         autoCleanUnit = defaults.string(forKey: "autoCleanUnit").flatMap(AutoCleanUnit.init) ?? .day
         lastAutoClean = defaults.object(forKey: "lastAutoClean") as? Date
+        protectedPaths = Set(defaults.stringArray(forKey: "protectedPaths") ?? [])
         Task { await runAutoCleanLoop() } // the model lives as long as the app
     }
 
@@ -144,7 +151,8 @@ final class CleanerModel {
             for cat in cats {
                 group.addTask { (cat.id, Scanner.scan(cat)) }
             }
-            for await (id, result) in group {
+            for await (id, var result) in group {
+                result.items.removeAll { protectedPaths.contains($0.url.path) }
                 results[id] = result
                 scanning.remove(id)
             }
@@ -163,6 +171,8 @@ final class CleanerModel {
         guard !jobs.isEmpty else { return }
         isCleaning = true
         let report = await Task.detached(priority: .userInitiated) { Cleaner.clean(jobs) }.value
+        let adminPaths = Set(jobs.filter { $0.0.requiresAdmin }.flatMap { $0.1.map(\.url.path) })
+        if !report.adminCancelled { protectedPaths.formUnion(report.failed.filter(adminPaths.contains)) }
         isCleaning = false
         finishedReport = report
         await scan(keepingReport: true)

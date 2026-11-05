@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1 — 2026-11-05
+
+### Fixed
+- System Caches / System Logs no longer ask for your administrator password on every clean
+  when the only items left are ones macOS protects and won't let anyone delete. Those items
+  are skipped when scanning, and anything a clean with your password couldn't remove is
+  not offered again.
+
 ## 1.1.0 — 2026-11-05
 
 ### New
