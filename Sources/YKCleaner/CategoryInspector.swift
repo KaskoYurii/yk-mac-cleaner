@@ -7,8 +7,8 @@ import UniformTypeIdentifiers
 /// Native checkboxes, multi-selection, Space for Quick Look, right-click actions.
 struct CategoryInspector: View {
     @Bindable var model: CleanerModel
-    @State private var selection = Set<URL>()
-    @State private var previewURL: URL?
+    @ViewState private var selection = Set<URL>()
+    @ViewState private var previewURL: URL?
 
     var body: some View {
         if let category = model.inspectorCategory {

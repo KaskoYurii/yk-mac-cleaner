@@ -3,8 +3,9 @@ import SwiftUI
 
 @main
 struct YKCleanerApp: App {
-    @State private var model = CleanerModel()
-    @State private var apps = AppsModel()
+    @NSApplicationDelegateAdaptor private var appDelegate: AppDelegate
+    @ViewState private var model = CleanerModel()
+    @ViewState private var apps = AppsModel()
 
     var body: some Scene {
         Window("YK Cleaner", id: "main") {
@@ -15,6 +16,65 @@ struct YKCleanerApp: App {
         .windowResizability(.contentMinSize)
         .windowToolbarStyle(.unified)
         .commands { CleanerCommands(model: model, apps: apps) }
+
+        Settings { SettingsView(model: model) }
+
+        // Closing the window keeps the app running here, so auto clean keeps working.
+        MenuBarExtra {
+            MenuBarMenu(model: model)
+        } label: {
+            MenuBarLabel(model: model)
+        }
+    }
+}
+
+final class AppDelegate: NSObject, NSApplicationDelegate {
+    /// True when macOS opened the app as a login item: start hidden in the menu bar.
+    @MainActor static var launchedAtLogin = false
+
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        let event = NSAppleEventManager.shared().currentAppleEvent
+        Self.launchedAtLogin = event?.eventID == kAEOpenApplication
+            && event?.paramDescriptor(forKeyword: keyAEPropData)?.enumCodeValue == keyAELaunchedAsLogInItem
+    }
+
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { false }
+}
+
+/// Always alive (unlike the window), so it hands the model a way to reopen the window.
+private struct MenuBarLabel: View {
+    let model: CleanerModel
+    @Environment(\.openWindow) private var openWindow
+
+    var body: some View {
+        Image(systemName: "sparkles")
+            .accessibilityLabel("YK Cleaner")
+            .onAppear { model.showWindow = { openWindow(id: "main") } }
+    }
+}
+
+private struct MenuBarMenu: View {
+    let model: CleanerModel
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Button("Open YK Cleaner") {
+            openWindow(id: "main")
+            NSApp.activate()
+        }
+        if let next = model.nextAutoClean {
+            Text("Next clean: \(next.formatted(date: .abbreviated, time: .shortened))")
+        }
+        Divider()
+        Button("Settings…") {
+            openSettings()
+            NSApp.activate()
+        }
+        .keyboardShortcut(",")
+        Button("Check for Updates…") { CleanerCommands.checkForUpdates(openSettings) }
+        Button("Quit YK Cleaner") { NSApp.terminate(nil) }
+            .keyboardShortcut("q")
     }
 }
 
@@ -24,8 +84,9 @@ struct YKCleanerApp: App {
 struct RootView: View {
     @Bindable var model: CleanerModel
     @Bindable var apps: AppsModel
-    @State private var appsVisited = false
+    @ViewState private var appsVisited = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.dismissWindow) private var dismissWindow
 
     private var onApps: Bool { model.section == .apps }
 
@@ -45,6 +106,16 @@ struct RootView: View {
         .navigationSubtitle(subtitle)
         .toolbar { toolbar }
         .task { await model.scan() }
+        // Dock icon only while the window is open; otherwise the app lives in the menu bar.
+        .onAppear {
+            if AppDelegate.launchedAtLogin {
+                AppDelegate.launchedAtLogin = false
+                Task { dismissWindow(id: "main") }
+            } else {
+                NSApp.setActivationPolicy(.regular)
+            }
+        }
+        .onDisappear { NSApp.setActivationPolicy(.accessory) }
         .onChange(of: model.section, initial: true) { _, section in
             if section == .apps { model.showInspector = false }
             guard section == .apps, !appsVisited else { return }
@@ -142,9 +213,20 @@ struct CleanerCommands: Commands {
         NSApp.activate()
     }
 
+    @Environment(\.openSettings) private var openSettings
+
+    /// Opens Settings, where the About section shows the result inline.
+    @MainActor
+    static func checkForUpdates(_ openSettings: OpenSettingsAction) {
+        openSettings()
+        NSApp.activate()
+        Task { await UpdateChecker.shared.check() }
+    }
+
     var body: some Commands {
         CommandGroup(replacing: .appInfo) {
             Button("About YK Cleaner") { Self.showAbout() }
+            Button("Check for Updates…") { Self.checkForUpdates(openSettings) }
         }
 
         // Single-window utility: no "New Window".
@@ -189,3 +271,8 @@ struct CleanerCommands: Commands {
         }
     }
 }
+
+// ponytail: SDK 27 makes `@State` a macro whose plugin ships only with Xcode, not the
+// Command Line Tools. This alias names the same property wrapper without the macro.
+// Switch back to `@State` once the build has an Xcode toolchain.
+typealias ViewState<Value> = SwiftUI.State<Value>

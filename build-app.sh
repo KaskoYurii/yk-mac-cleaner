@@ -25,7 +25,7 @@ if [ "${UNIVERSAL:-0}" = "1" ]; then ARCHS=(arm64 x86_64); else ARCHS=("$(uname 
 SLICES=()
 for arch in "${ARCHS[@]}"; do
   swiftc -O -swift-version 5 -parse-as-library \
-    -target "$arch-apple-macos14.0" "${SWIFT_FLAGS[@]}" \
+    -target "$arch-apple-macos14.0" ${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"} \
     -o "build/YKCleaner-$arch" Sources/YKCleaner/*.swift
   SLICES+=("build/YKCleaner-$arch")
 done
@@ -46,7 +46,7 @@ BUILD="$(git rev-list --count HEAD 2>/dev/null || echo 1)"
 # App icon
 ICONSET="build/AppIcon.iconset"
 rm -rf "$ICONSET" && mkdir -p "$ICONSET"
-swift "${SWIFT_FLAGS[@]}" Scripts/make-icon.swift build/icon-1024.png
+swift ${SWIFT_FLAGS[@]+"${SWIFT_FLAGS[@]}"} Scripts/make-icon.swift build/icon-1024.png
 for s in 16 32 128 256 512; do
   sips -z $s $s build/icon-1024.png --out "$ICONSET/icon_${s}x${s}.png" >/dev/null
   d=$((s * 2))

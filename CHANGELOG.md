@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.0 — 2026-11-05
+
+### New
+- Auto clean: clean the areas ticked in Cleaner every N hours or days. By default it asks first;
+  turn that off to clean without asking (areas that need an administrator password are then skipped).
+  A run missed while the app was closed happens on the next launch.
+- Settings window (⌘,) with Launch at login, Auto Clean, and an About section showing the version.
+- Check for Updates… (app menu, menu bar icon and Settings) looks for a newer release on GitHub
+  and links to its download page.
+- Menu bar icon: closing the window keeps YK Cleaner running there, so auto clean keeps working.
+  The Dock icon only shows while the window is open. At login it starts hidden in the menu bar.
+
+### Fixed
+- Builds with the latest Command Line Tools (SDK 27).
+
 ## 1.0.1 — 2026-11-04
 
 ### Fixed

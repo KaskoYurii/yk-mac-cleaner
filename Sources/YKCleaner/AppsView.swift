@@ -183,7 +183,7 @@ private struct MeasuringBar: View {
 /// Skeleton rows shown while the app list is being read. Pulses gently (static with Reduce Motion).
 private struct PlaceholderList: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var dim = false
+    @ViewState private var dim = false
 
     // Varied widths so it reads as a list, not a pattern.
     private let widths: [CGFloat] = [120, 90, 150, 105, 135, 80, 140, 100, 125, 95, 145, 110]
@@ -227,7 +227,7 @@ private struct PlaceholderList: View {
 /// cascade in too. With Reduce Motion it's a short fade with no movement or stagger.
 private struct CascadeIn: ViewModifier {
     let index: Int
-    @State private var shown = false
+    @ViewState private var shown = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     func body(content: Content) -> some View {

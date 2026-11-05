@@ -11,7 +11,7 @@ struct CategoryCard: View {
     private var isScanning: Bool { model.scanning.contains(category.id) }
     private var locked: Bool { model.isLocked(category) }
     private var itemCount: Int { model.items(for: category).count }
-    @State private var showAccessHelp = false
+    @ViewState private var showAccessHelp = false
 
     var body: some View {
         Button {
